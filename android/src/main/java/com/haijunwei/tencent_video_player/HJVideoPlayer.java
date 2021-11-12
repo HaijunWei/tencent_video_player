@@ -92,6 +92,12 @@ public class HJVideoPlayer implements ITXLivePlayListener, ITXVodPlayListener {
                         textureEntry.surfaceTexture().setDefaultBufferSize(width, height);
                         mSurfaceWidth = width;
                         mSurfaceHeight = height;
+
+                        Map<String, Object> event = new HashMap<>();
+                        event.put("event", "resolutionUpdate");
+                        event.put("width", width);
+                        event.put("height", height);
+                        eventSink.success(event);
                     }
                 }
             }, null);

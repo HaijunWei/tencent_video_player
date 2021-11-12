@@ -26,8 +26,7 @@
 // 旧的一帧
 @property (nonatomic) CVPixelBufferRef lastBuffer;
 
-@property (nonatomic, assign) NSInteger videoWidth;
-@property (nonatomic, assign) NSInteger videoHeight;
+@property (nonatomic, assign) BOOL needGetResolution;
 
 @end
 
@@ -46,6 +45,7 @@
             _livePlayer = [TXLivePlayer new];
             _livePlayer.delegate = self;
             _livePlayer.videoProcessDelegate = self;
+            [_livePlayer setVolume:100];
         }
         _disposed = false;
     }
@@ -101,6 +101,7 @@
         [self.vodPlayer seek:0];
         [self.vodPlayer startPlay:url];
     } else {
+        self.needGetResolution = true;
         if (type == HJLiveTypeRtmp) {
             [self.livePlayer startPlay:url type:PLAY_TYPE_LIVE_RTMP];
         } else {
@@ -183,6 +184,16 @@
     if (old && old != pixelBuffer) {
         CFRelease(old);
     }
+    if (self.needGetResolution) {
+        self.needGetResolution = NO;
+        CGSize size = [self sizeFromPixelBuffer:pixelBuffer];
+        self.eventSink(@{
+            @"event": @"resolutionUpdate",
+            @"width": @(size.width),
+            @"height": @(size.height)
+        });
+    }
+    
     if (_textureId >= 0) {
         [_registry textureFrameAvailable:_textureId];
     }
@@ -191,19 +202,6 @@
 }
 
 - (void)onNetStatus:(NSDictionary *)param {
-    if (self.eventSink != nil) {
-        NSInteger videoWidth = [param[@"VIDEO_WIDTH"] intValue];
-        NSInteger videoHeight = [param[@"VIDEO_HEIGHT"] intValue];
-        if (self.videoWidth != videoWidth || self.videoHeight != videoHeight) {
-            self.videoWidth = videoWidth;
-            self.videoHeight = videoHeight;
-            self.eventSink(@{
-                @"event": @"resolutionUpdate",
-                @"width": @(self.videoWidth),
-                @"height": @(self.videoHeight)
-            });
-        }
-    }
 }
 
 - (void)onPlayEvent:(int)EvtID withParam:(NSDictionary *)param {
@@ -237,7 +235,7 @@
 }
 
 - (void)onNetStatus:(TXVodPlayer *)player withParam:(NSDictionary *)param {
-    
+//    NSLog(@"--- param %@", param);
 }
 
 - (void)onPlayEvent:(TXVodPlayer *)player event:(int)EvtID withParam:(NSDictionary *)param {
@@ -252,6 +250,7 @@
             }
             break;
         case PLAY_EVT_CHANGE_RESOLUTION: //视频分辨率发生变化（分辨率在 EVT_PARAM 参数中）
+            NSLog(@"--- evtId %d，param %@", EvtID, param);
             if (self.eventSink != nil) {
                 self.eventSink(@{
                     @"event": @"resolutionUpdate",
@@ -283,6 +282,10 @@
 }
 
 #pragma mark - Helpers
+
+- (CGSize)sizeFromPixelBuffer:(CVPixelBufferRef)pixelBufferRef {
+    return CGSizeMake(CVPixelBufferGetWidth(pixelBufferRef), CVPixelBufferGetHeight(pixelBufferRef));
+}
 
 - (UIImage *)imageFromPixelBuffer:(CVPixelBufferRef)pixelBufferRef {
     CIImage *ciImage = [CIImage imageWithCVPixelBuffer:pixelBufferRef];
