@@ -218,7 +218,7 @@
             if (self.eventSink != nil) {
                 self.eventSink(@{
                   @"event" : @"progressUpdate",
-                  @"position": @((NSInteger)([param[@"EVT_PLAY_PROGRESS"] floatValue] * 1000)),
+                  @"position": @([self.livePlayer getCurrentRenderPts]),
                 });
             }
             break;

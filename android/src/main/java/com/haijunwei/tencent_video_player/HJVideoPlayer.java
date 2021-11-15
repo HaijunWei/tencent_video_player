@@ -34,6 +34,8 @@ import java.io.FileOutputStream;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import io.flutter.plugin.common.EventChannel;
 import io.flutter.view.TextureRegistry;
@@ -57,6 +59,8 @@ public class HJVideoPlayer implements ITXLivePlayListener, ITXVodPlayListener {
     private Activity activity;
 
     boolean disposed = false;
+
+    private Timer timer = new Timer();
 
     private int mSurfaceWidth, mSurfaceHeight = 0;
 
@@ -92,12 +96,6 @@ public class HJVideoPlayer implements ITXLivePlayListener, ITXVodPlayListener {
                         textureEntry.surfaceTexture().setDefaultBufferSize(width, height);
                         mSurfaceWidth = width;
                         mSurfaceHeight = height;
-
-                        Map<String, Object> event = new HashMap<>();
-                        event.put("event", "resolutionUpdate");
-                        event.put("width", width);
-                        event.put("height", height);
-                        eventSink.success(event);
                     }
                 }
             }, null);
@@ -132,8 +130,26 @@ public class HJVideoPlayer implements ITXLivePlayListener, ITXVodPlayListener {
         } else {
             if (isPlaying) {
                 livePlayer.resume();
+                TimerTask task = new TimerTask() {
+                    @Override
+                    public void run() {
+                        long position = livePlayer.getCurrentRenderPts();
+                        Map<String, Object> event = new HashMap<>();
+                        event.put("event", "progressUpdate");
+                        event.put("position", position);
+                        activity.runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                eventSink.success(event);
+                            }
+                        });
+
+                    }
+                };
+                timer.scheduleAtFixedRate(task, 0, 1000);
             } else {
                 livePlayer.pause();
+                timer.cancel();
             }
         }
     }
@@ -167,6 +183,7 @@ public class HJVideoPlayer implements ITXLivePlayListener, ITXVodPlayListener {
             vodPlayer.stopPlay(true);
         } else {
             livePlayer.stopPlay(true);
+            timer.cancel();
         }
     }
 
@@ -222,12 +239,14 @@ public class HJVideoPlayer implements ITXLivePlayListener, ITXVodPlayListener {
     void dispose() {
         stop();
         disposed = true;
+        timer.cancel();
         eventSink.setDelegate(null);
         textureEntry.release();
     }
 
     @Override
     public void onPlayEvent(int i, Bundle bundle) {
+        Log.d(TAG, "onPlayEvent" + i + bundle.toString());
         switch (i) {
             case TXLiveConstants.PLAY_EVT_PLAY_BEGIN: {
                 Map<String, Object> event = new HashMap<>();
@@ -235,10 +254,11 @@ public class HJVideoPlayer implements ITXLivePlayListener, ITXVodPlayListener {
                 eventSink.success(event);
                 break;
             }
-            case TXLiveConstants.PLAY_EVT_PLAY_PROGRESS: {
+            case TXLiveConstants.PLAY_EVT_CHANGE_RESOLUTION: {
                 Map<String, Object> event = new HashMap<>();
-                event.put("event", "progressUpdate");
-                event.put("position", 0);
+                event.put("event", "resolutionUpdate");
+                event.put("width", bundle.get("EVT_PARAM1"));
+                event.put("height", bundle.get("EVT_PARAM2"));
                 eventSink.success(event);
                 break;
             }
