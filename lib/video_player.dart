@@ -128,7 +128,7 @@ class HJVideoPlayerController extends ValueNotifier<HJVideoPlayerValue> {
   VideoDataSource? _dataSource;
 
   Future<void> initialize() async {
-    if (_initialized) return;
+    if (_initialized || (_creatingCompleter?.isCompleted ?? false)) return;
     _lifeCycleObserver = _VideoAppLifeCycleObserver(this);
     _lifeCycleObserver.initialize();
     _creatingCompleter = Completer<void>();
